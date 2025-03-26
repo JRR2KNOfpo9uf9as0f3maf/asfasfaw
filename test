@@ -1,0 +1,2014 @@
+local bot = getBot()
+local spam = bot.auto_spam
+local botMalady = bot.auto_malady
+math.randomseed(os.time() + bot.index + math.floor(os.clock() * 100000))
+bot.legit_mode = false
+bot.auto_reconnect = true
+bot.reconnect_interval = delayReconnect
+bot.random_reconnect = false
+bot.auto_collect = false
+bot.collect_range = 3
+spam.random_interval = true
+spam.use_color = true
+botMalady.auto_refresh = false
+
+local files = {
+    ERROR = '[ROTATION] ERROR LIST.txt',
+    SEED = {'[ROTATION] WEBHOOK SEED STORAGE.txt', '[ROTATION] SEED STORAGE.txt'},
+    PACK = {'[ROTATION] WEBHOOK PACK STORAGE.txt', '[ROTATION] PACK STORAGE.txt'},
+    EVENT = {'[ROTATION] WEBHOOK EVENT STORAGE.txt', '[ROTATION] EVENT STORAGE.txt'},
+    VIEW = '[ROTATION] WEBHOOK BOT VIEW.txt'
+}
+
+local farmList = {} 
+local pnbList = {}
+local clearWorld = {}
+
+local storageSeed = {}
+local storagePack = {} 
+local storageEvent = {}
+
+local originalFarm = {} 
+local originalFill = {}
+local fillBackup = {}
+
+local tilePNB = {} 
+local seedInfo = {} 
+local packInfo = {} 
+local eventInfo = {}
+
+local messageID, seedsID, packID, eventID
+
+local nuked = false 
+local wrong = false 
+local isNormalDF = false
+local hasFloat = false
+local firstChat = false
+local isBuyPack = buyPack.enabled
+local isAutoPlant = autoPlantProfitSeed
+local isStore = storeAtFarm
+
+local avatarUrl = 'https://cdn.discordapp.com/attachments/1333783873070567445/1346081467326922823/3df22986-b5c2-4ce0-aea6-0e2d165de300.webp?ex=67c78c4e&is=67c63ace&hm=d2846a592241affe94cf1a4693dd40011760259d80575e0d8528a31a79648ca6&'
+
+local scriptUpTime = os.time() 
+local cureUpTime = os.time()
+
+local malady = 0
+local codeMalady = 0
+local rotation = 0
+
+local dontTrash = {18, 32, 6336, 9640, 370, 242, blockID, seedID, blockLeveling, seedLeveling, specialEvent.itemEventID}
+
+local function delay(format)
+    sleep(format + (math.min(bot:getPing(), 100) * 3))
+end
+
+local function sentences()
+    local phrases = {
+        "Senyum cerah di pagi hari", "Langit biru di sore hari", "Angin sepoi di pantai",
+        "Hati bahagia bersama keluarga", "Cinta tumbuh di setiap langkah", "Mentari terbenam di ujung laut",
+        "Hujan rintik di malam sunyi", "Kehangatan keluarga di setiap waktu", "Bunga mekar di taman indah",
+        "Mimpi besar di atas awan", "Cahaya bintang di langit malam", "Desir angin di pegunungan tinggi",
+        "Gelombang ombak di pantai sepi", "Suara alam di pagi tenang", "Langkah kecil menuju kebahagiaan",
+        "Kehidupan baru di hari ini", "Petualangan seru di dunia nyata", "Keindahan alam di setiap sudut",
+        "Dunia indah di balik senyum", "Langit senja di balik awan", "Pemandangan indah di desa sejuk",
+        "Pelukan hangat di malam dingin", "Momen bahagia di tengah keramaian", "Bintang bersinar di langit malam",
+        "Keberanian tumbuh di dalam hati", "Waktu berlalu di tengah tawa", "Rindu merayap di hati sunyi",
+        "Suara ombak di tengah malam", "Cinta hadir di setiap saat", "Harapan baru di setiap langkah"
+    }
+    return phrases[math.random(#phrases)]
+end
+
+local function randomLetter(length)
+    local alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    local generate = ''
+    for i = 1, length do
+        local randNum = math.random(1, #alphabet)
+        local genNum = string.sub(alphabet, randNum, randNum)
+        generate = generate .. genNum
+    end
+    return generate
+end
+
+local function writeFile(content, fileName)
+    local file = io.open(fileName, 'a+')
+    if file then
+        local fileContent = {}
+        for line in file:lines() do
+            table.insert(fileContent, line)
+        end
+        file:close()
+        local isDuplicate = false
+        for _, existingLine in ipairs(fileContent) do
+            if existingLine == content then
+                isDuplicate = true
+                break
+            end
+        end
+        if not isDuplicate then
+            file = io.open(fileName, 'a')
+            if file then
+                file:write(content .. '\n')
+                file:close()
+            end
+        end
+    else
+        print("fail to open file for write: " .. fileName)
+    end
+end
+
+local function fileExists(fileName)
+    local file = io.open(fileName, "r")
+    if file then
+        file:close()
+        return true
+    else
+        return false
+    end
+end
+
+local function deleteFile(fileName)
+    local result, reason = os.remove(fileName)
+    if result then
+        print(fileName .. " was deleted successfully.")
+    else
+        print("Error deleting " .. fileName .. ": " .. reason)
+    end                                                                                                             
+end
+
+local function round(num)
+    return num % 1 > 0.5 and math.ceil(num) or math.floor(num)
+end
+
+local function backpack(id)
+    return bot:getInventory():getItemCount(id)
+end
+
+local function isCanFindpath(x, y)
+    return (#bot:getPath(x, y) > 0 or bot:isInTile(x, y))
+end
+
+local function findPath(x, y)
+    if math.abs(x - bot.x) > 3 or y ~= bot.y then
+        bot:findPath(x, y)
+    else
+        bot:moveTile(x, y)
+    end
+    sleep(100)
+end
+
+local function createMessageID(url, content, fileNames)
+    if url == 'x' then return nil end
+    url = url .. '?wait=1'
+    local http = HttpClient.new()
+    http.url = url
+    http.headers['Content-Type'] = 'application/json'
+    http:setMethod(Method.post)
+    http.content = string.format([[
+        {
+            "username": "CRUS4DER",
+            "embeds": [
+                {
+                    "title": "%s",
+                    "color": %d
+                }
+            ]
+        }
+    ]], content, math.random(111111, 999999))
+    local result = http:request()
+    if result.error == 0 then
+        local resultData = result.body:match('"id"%s*:%s*"([^"]+)"')
+        if resultData and fileNames then
+            writeFile(resultData, fileNames)
+        end
+        return resultData
+    else
+        print("Request Error: " .. result:getError())
+    end
+    return nil
+end
+
+local function createWebhook(url, file)
+    local function readMessage(fileName)
+        local content, file = "", io.open(fileName, 'r')
+        if file then
+            for line in file:lines() do content = content .. line end
+            file:close()
+            return content
+        else
+            error('Failed to open file: ' .. fileName)
+        end
+    end
+    if url == 'x' then return nil end
+    if bot.index == 1 and not fileExists(file) then
+        createMessageID(url, 'Creating message ID', file)
+    end
+    return readMessage(file)
+end
+
+local function itemFloat(id)
+    return getWorld().growscan:getObjects()[id] or 0
+end
+
+local function notifications(description)
+    messageBox = MessageBox.new()
+    messageBox.title = 'CRUS4DER | Script Store'
+    messageBox.description = description
+    messageBox:send()
+end
+
+local function split(data)
+    local world, door = data, ''
+    if data:find(":") then
+        world, door = data:match("(.+):(.+)")
+    elseif data:find("|") then
+        world, door = data:match("(.+)|(.+)")
+    end
+    return { world = world, door = door }
+end
+
+local function selectWorld(data)
+    local worlds = {}
+    if type(data) == 'string' then
+        local file = io.open(data, 'r')
+        if file then
+            for line in file:lines() do
+                table.insert(worlds, split(line))
+            end
+            file:close()
+        else
+            error("Failed to open file: " .. data)
+        end
+    elseif type(data) == 'table' then
+        for _, line in ipairs(data) do 
+            table.insert(worlds, split(line))
+        end
+    end
+    return worlds
+end
+
+local function spreadWorld(world, save)
+    local totalWorlds = selectWorld(world)
+    local totalBots = #getBots()
+    local index = bot.index - 1
+    local separate = #totalWorlds / totalBots
+    local start = math.floor(index * separate) + 1
+    local stop = math.floor((index + 1) * separate)
+    for i = start, stop do
+        table.insert(save, totalWorlds[i])
+    end
+end
+
+local function getStatus(plr)
+    for i, v in pairs(BotStatus) do
+        if v == plr.status then
+            return tostring(i:gsub("_", " "):gsub("^%l", string.upper))
+        end
+    end
+    return "Unknown"
+end
+
+local function getEmoji(plr)
+    if plr.status == BotStatus.online then
+        return "<a:online:1235638419284037763>"
+    end
+    return "<a:offline:1238731608220237845>"
+end
+
+local function formatSeconds(seconds)
+    local days = math.floor(seconds / (24 * 3600))
+    local remainingSeconds = seconds % (24 * 3600)
+    local hours = math.floor(remainingSeconds / 3600)
+    local minutes = math.floor((remainingSeconds % 3600) / 60)
+    return string.format("%d Days %d Hours %d Minutes", days, hours, minutes)
+end
+
+local function getWorldStatic(types)
+    local function writeToFile(content, fileName)
+        local file = io.open(fileName, 'r')
+        local fileContent = {}
+        if file then
+            for line in file:lines() do
+                local worldName = line:match("^(%w+) :")
+                local newWorldName = content:match("^(%w+) :")
+                if worldName ~= newWorldName then
+                    table.insert(fileContent, line)
+                end
+            end
+            file:close()
+        end
+        table.insert(fileContent, content)
+        file = io.open(fileName, 'w')
+        if file then
+            for _, line in ipairs(fileContent) do
+                file:write(line .. '\n')
+            end
+            file:close()
+        else
+            print("Fail read to File: " .. fileName)
+        end
+    end
+    local title = {
+        seed = {files.SEED[2], seedInfo},
+        pack = {files.PACK[2], packInfo},
+        event = {files.EVENT[2], eventInfo},
+    }
+    local entryFile = title[types] and title[types][1]
+    local entryStatic = title[types] and title[types][2]
+    local maxLines = 10
+    local existingLines = {}
+    local file = io.open(entryFile, 'r')
+    if file then
+        for line in file:lines() do
+            table.insert(existingLines, line)
+        end
+        file:close()
+    else
+        file = io.open(entryFile, 'w')
+        if file then
+            file:close()
+        end
+    end
+    if #existingLines > maxLines then
+        clearFile(entryFile) 
+        existingLines = {}
+        if types == 'seed' then seedInfo = {}
+        elseif types == 'pack' then packInfo = {}
+        elseif types == 'event' then eventInfo = {} end
+    end
+    local newLines = {}
+    for i, world in pairs(entryStatic) do
+        table.insert(newLines, i..' : '..world)
+    end
+    if #newLines > 0 then
+        for _, line in ipairs(newLines) do
+            writeToFile(line, entryFile)
+        end
+    end
+    local finalLines = {}
+    file = io.open(entryFile, 'r')
+    if file then
+        for line in file:lines() do
+            table.insert(finalLines, line)
+        end
+        file:close()
+    else
+        print("Fail to read file after update: " .. entryFile)
+    end
+    return table.concat(finalLines, '\n')
+end
+
+local function scanObjects(case)
+    if linkStorageInfo == 'x' then return end
+    local title = {
+        seed = {seedID},
+        pack = buyPack.packList,
+        event = specialEvent.eventList
+    }
+    local item = title[case]
+    local object = {}
+    for _, obj in pairs(getObjects()) do
+        object[obj.id] = (object[obj.id] or 0) + obj.count
+    end
+    local str = ''
+    for i, v in pairs(item) do
+        for id, count in pairs(object) do
+            if id == v then
+                str = str .. '('..i..' : '..count..'x) '
+            end
+        end
+    end
+    return str ~= '' and str or nil
+end
+
+local function formatNumber(number)
+    return tostring(number):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+end
+
+local function getBotGems()
+    local count = 0
+    for _,bot in pairs(getBots()) do
+        count = count + bot.obtained_gem_count
+    end
+    return count
+end
+
+local function getWorldCount(world)
+    local count = 0
+    for _, v in pairs(world) do 
+        count = count + 1 
+    end
+    return count
+end
+
+local function sendBotInfo()
+    if linkBotView == 'x' then return end
+    local webhook = Webhook.new(linkBotView)
+    webhook.avatar_url, webhook.username = avatarUrl, "CRUS4DER"
+    webhook.embed1.use = true
+    webhook.embed1.color = math.random(111111, 999999)
+    local counts = {online = 0, banned = 0, offline = 0}
+    for _, name in pairs(getBots()) do
+        if name.status == BotStatus.online then
+            counts.online = counts.online + 1
+        elseif name.status == BotStatus.account_banned or name.status == BotStatus.account_suspended then
+            counts.banned = counts.banned + 1
+        else
+            counts.offline = counts.offline + 1
+        end
+    end
+    local worlds = selectWorld(botLeveling and worldLeveling or worldList)
+    local fields = {
+        {'<a:online:1235638419284037763> Online Count', counts.online},
+        {'<a:offline:1238731608220237845> Offline Count', counts.offline},
+        {'<a:off:1235638416821981316> Banned Count', counts.banned},
+        {'<:scrollbulletin:1228977435668910151> Farm Count', formatNumber(getWorldCount(worlds))},
+        {'<:packcrate:1156971687062032394> Storage Count', formatNumber(getWorldCount(storageSeed) + getWorldCount(storagePack) + getWorldCount(storageEvent))},
+        {'<:gems:1087076279951568996> Gems Obtained', formatNumber(getBotGems())},
+        {'<a:clocks:1249745738586525757> Uptime', formatSeconds(os.difftime(os.time(), scriptUpTime))}
+    }
+    for _, field in ipairs(fields) do
+        webhook.embed1:addField(field[1], field[2], true)
+    end
+    webhook.embed1.footer.icon_url = avatarUrl
+    webhook.embed1.footer.text = 'Auto Rotation developed By CRUS4DER'
+    webhook.embed1.timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    webhook:edit(messageID)
+end
+
+local function sendStorageInfo(message, types)
+    if linkStorageInfo == 'x' then return end
+    local webhook = Webhook.new(linkStorageInfo)
+    webhook.username = "CRUS4DER"
+    webhook.embed1.use = true
+    webhook.embed1.color = math.random(111111, 999999)
+    local world = getWorldStatic(types)
+    local titles = { seed = 'STORAGE SEED', pack = 'STORAGE PACK', event = 'STORAGE EVENT' }
+    webhook.embed1.title = titles[types]
+    webhook.embed1:addField('<:MONITOR:1033601526993793095>Last Visited', bot.name, false)
+    webhook.embed1:addField('<:smallseedpack:1233810600703033374>STORAGE', world, true)
+    webhook.embed1.footer.icon_url = avatarUrl
+    webhook.embed1.footer.text = 'Auto Rotation developed By CRUS4DER'
+    webhook.embed1.timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    webhook:edit(message)
+end
+
+local function sendInfo(text)
+    if webhookStatusLink == 'x' then return end
+    local webhook = Webhook.new(webhookStatusLink)
+    webhook.username = "CRUS4DER"
+    webhook.embed1.use = true
+    webhook.embed1:addField('BOT INFORMATION', bot.name.. ' slot-' .. bot.index .. ' : **'..text..'**', false)
+    webhook.embed1.footer.icon_url = avatarUrl
+    webhook.embed1.footer.text = 'Auto Rotation developed By CRUS4DER'
+    webhook.embed1.timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    if tagDiscord then 
+        webhook.content = '@everyone' 
+    end
+    webhook:send()
+end
+
+local function console(description)
+    bot:getLog():append(description)
+    sendInfo(description)
+end
+
+local function botConditions()
+    if not bot:isInWorld() then return false end
+    if bot.status ~= BotStatus.online then return false end
+    return bot:isInWorld() and bot.status == BotStatus.online
+end
+
+local function isRestTime()
+    if botRest then
+        local now = os.time()
+        local date = os.date("*t", now)
+        for _, hour in pairs(restTime) do
+            if date.hour == hour and date.min == 0 then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function scanMalady()
+    malady = 0
+    codeMalady = 0
+    local lastStatus = bot.custom_status
+    bot.custom_status = 'Scanning Malady'
+    local function processMaladyTime(time)
+        local hours = tonumber(time:match("(%d+)%s*hour")) or 0
+        local mins = tonumber(time:match("(%d+)%s*min")) or 0
+        local secs = tonumber(time:match("(%d+)%s*sec")) or 0
+        local total_seconds = (hours * 3600) + (mins * 60) + secs
+        malady = total_seconds > 180 and (total_seconds - 180) or 0
+    end
+    local rand = randomLetter(4)
+    local count = 0
+    while not bot:isInWorld() do
+        bot:warp(rand)
+        sleep(1000 * delayWarp)
+        count = count + 1
+        if count % 5 == 0 then
+            rand = randomLetter(4)
+            while bot.status == BotStatus.online do
+                bot:disconnect()
+                sleep(3000)
+            end
+            while bot.status ~= BotStatus.online do
+                sleep(10000)
+            end
+        end
+    end
+    addEvent(Event.game_message, function(message)
+        if message:find('action|log\nmsg|`wMalady: Grumbleteeth') or message:find('action|log\nmsg|`wMalady: Chicken Feet') then
+            local _, time = message:match('`wMalady: ([^`]+)`` %(([%d%a%s,]+) left%)')
+            if time then
+                processMaladyTime(time)
+                unlistenEvents()
+            end
+        elseif message:find('action|log\nmsg|`wRecovering``') then
+            local time = message:match("`wRecovering`` %(`w([%d%a%s,]+) secs`` left%)")
+            if time then
+                processMaladyTime(time)
+                unlistenEvents()
+            end
+        elseif message:find('action|log\nmsg|`wMalady: Gem Cuts') then
+            codeMalady = 2
+            unlistenEvents()
+        elseif message:find('action|log\nmsg|`wMalady: Torn Punching Muscle') then
+            codeMalady = 1
+            unlistenEvents()    
+        end
+    end)
+    if botConditions() then
+        bot:say('/status')
+        listenEvents(5)
+    end
+    removeEvent(Event.game_message)
+    bot.custom_status = lastStatus
+end
+
+local function fixMalady()
+    if not autoCureMalady then return end
+    local function enableMalady(setBool)
+        botMalady.auto_grumbleteeth, botMalady.enabled = setBool, setBool
+    end
+    local function enableCure(setBool)
+        botMalady.auto_surgery_station, bot.auto_farm.enabled = true, true
+    end
+    scanMalady()
+    if malady > 0 and codeMalady == 0 then return end
+    local lastStatus = bot.custom_status
+    enableMalady(true)
+    if not firstChat then
+        local grumbleUpTime = os.time()
+        bot.custom_status = 'Getting Malady'
+        while malady == 0 and codeMalady == 0 do
+            sleep(10000)
+            if os.time() - grumbleUpTime >= math.random(60, 300) then
+                scanMalady()
+                grumbleUpTime = os.time()
+            elseif os.time() - cureUpTime >= 1200 then
+                firstChat = true
+                cureUpTime = os.time()
+                break
+            end
+        end
+    else
+        malady = 300
+    end
+    while codeMalady ~= 0 do
+        if backpack(242) < priceCure then
+            buyPack.enabled = false
+            malady = 300
+            cureUptime = os.time()
+            break 
+        end
+        bot.custom_status = 'Cure Malady'
+        for _, world in pairs(worldHospital) do
+            botMalady:addHospital(world..'|'..codeMalady..'|'..priceCure)
+        end
+        enableCure(true)
+        while malady == 0 do
+            sleep(20000)
+            scanMalady()
+        end
+        buyPack.enabled = isBuyPack
+        firstChat = false
+        enableCure(false)
+    end
+    enableMalady(false)
+    bot.custom_status = lastStatus
+end
+
+local function reconnect()
+    if bot.status ~= BotStatus.online then
+        local count, sended = 0, false
+        while bot.status ~= BotStatus.online do
+            if bot.status and (bot.status == BotStatus.account_banned or bot.status == BotStatus.account_suspended) then
+                bot.auto_reconnect = false
+                sendInfo('status is ' .. getStatus(bot) .. getEmoji(bot))
+                bot:getLog():append('status is ' .. getStatus(bot))
+                sendBotInfo()
+                error('Bot Suspended')
+            elseif bot.status == BotStatus.maintenance and not bot.reconnect_multiplier then
+                bot:getLog():append('status is ' .. getStatus(bot))
+                sendBotInfo()
+                bot.reconnect_multiplier = true 
+            elseif bot.status ~= BotStatus.online then
+                if not sended then
+                    sended = true
+                    sendInfo('status is ' .. getStatus(bot) .. getEmoji(bot))
+                    bot:getLog():append('status is ' .. getStatus(bot))
+                    sendBotInfo()
+                end
+            end
+            sleep(15000)
+            count = count + 1
+            if count % 120 == 0 and not bot.reconnect_multiplier then 
+                bot.reconnect_multiplier = true 
+            end
+        end
+        if bot.reconnect_multiplier then
+            bot.reconnect_multiplier = false
+        end
+        sendInfo('status is ' .. getStatus(bot) .. getEmoji(bot))
+        bot:getLog():append('status is ' .. getStatus(bot))
+        sendBotInfo()
+        fixMalady()
+    end
+end
+
+local function warp(world, id)
+    world = world:upper()
+    id = id or ''
+    nuked, wrong = false, false
+    if not bot:isInWorld(world) then
+        addEvent(Event.variantlist, function(variant, netid)
+            if variant:get(0):getString() == 'OnConsoleMessage' then
+                local dialog = variant:get(1):getString()
+                if dialog:find('inaccessible.') or dialog:find('reason.') or dialog:find('people in it.') or dialog:find("can't enter") or dialog:find('ban wears off.') then
+                    nuked = true
+                    unlistenEvents()
+                end
+            end
+        end)
+        local tries = 0
+        while not bot:isInWorld(world) and not nuked do
+            reconnect()
+            bot:warp(id == '' and world or world .. ('|' .. id))
+            for i = 1, delayWarp do
+                listenEvents(1)
+                if bot:isInWorld(world) or nuked then break end 
+            end
+            sleep(1000 * delayWarp)
+            tries = tries + 1
+            if tries % 10 == 0 then
+                local lastStatus = bot.custom_status
+                bot.auto_reconnect = false
+                bot.custom_status = 'Hard Warp'
+                console('Hard warp, resting for '..delayHardWarp..' mins')
+                while bot.status == BotStatus.online do
+                    bot:disconnect()
+                    sleep(5000)
+                end
+                sleep(60000 * delayHardWarp)
+                bot.auto_reconnect = true
+                bot.custom_status = lastStatus
+            end
+        end
+        removeEvent(Event.variantlist)
+    end
+    if bot:isInWorld(world) and id ~= '' then
+        local tries = 0
+        while getTile(bot.x, bot.y).fg == 6 and not wrong do
+            reconnect()
+            bot:warp(id == '' and world or world .. ('|' .. id))
+            sleep(1000 * delayWarp)
+            tries = tries + 1
+            if tries % 10 == 0 then 
+                wrong = true 
+            end
+        end
+    end
+end
+
+local function reposition(world, id, x, y)
+    if isRestTime() then
+        local lastStatus = bot.custom_status
+        bot.auto_reconnect, bot.custom_status = false, "Resting " .. restDuration .. " minutes"
+        console("is now resting for " .. restDuration .. " minutes")
+        if disconnectOnRest then
+            while bot.status == BotStatus.online do
+                bot:disconnect()
+                sleep(5000)
+            end
+        else
+            while bot:isInWorld() do
+                bot:leaveWorld()
+                sleep(5000)
+            end
+        end
+        sleep(restDuration * 60000)
+        bot.auto_reconnect, bot.custom_status = true, lastStatus
+    end
+    if autoCureMalady then
+        if os.time() - cureUpTime >= malady then
+            fixMalady()
+            cureUpTime = os.time()
+        end
+    end
+    if bot.status ~= BotStatus.online then
+        reconnect()
+    end
+    warp(world, id)
+    if (x and y) and (bot:isInWorld(world) and isCanFindpath(x, y)) then
+        while not bot:isInTile(x, y) do
+            bot:findPath(x, y)
+            sleep(500)
+        end
+    end
+end
+
+local function checkDF(w, id)
+    reposition(w, id)
+    local count = 0
+    for y = 0, 53 do
+        for x = 1, 98 do
+            local collision = getInfo(getTile(x, y).fg).collision_type
+            if y % 2 == 1 and collision == 0 then 
+                count = count + 1 
+            end
+        end
+    end
+    return count >= 2000
+end
+
+local function customTiles()
+    local tiles = {}
+    for y = 0, 53 do
+        if y % 4 == (isNormalDF and 1 or 0) then
+            for x = 0, 99 do
+                table.insert(tiles, { x = x, y = y })
+            end
+        else
+            for x = 99, 0, -1 do
+                table.insert(tiles, { x = x, y = y})
+            end
+        end
+    end
+    return tiles
+end
+
+local function isHarvestable(x, y)
+    local tile = getTile(x, y)
+    if not tile.fg then return false end
+    return tile:canHarvest() and hasAccess(x, y) > 0 and tile.fg == seedID
+end
+
+local function isPlantable(x, y, enabled)
+    local tile1, tile2 = getTile(x, y), getTile(x, y + 1)
+    if not tile1.fg or not tile2.fg then return false end
+    local collision = getInfo(tile2.fg).collision_type
+    local baseCondition = tile2.fg ~= 0 and isCanFindpath(x, y) and hasAccess(x, y) > 0 and (collision ~= 0 and collision <= 3)
+    return baseCondition and tile1.fg == 0
+end
+
+local function isSoilable(x, y)
+    local tile, tile1 = getTile(x, y + 1), getTile(x, y)
+    return tile1.fg == 0 and tile.fg == (blockID + 4) and isCanFindpath(x, y) and hasAccess(x, y + 1) > 0 
+end
+
+local function scanTiles(w, id, tiles)
+    reposition(w, id)
+    local count = 0
+    for _, tile in pairs(tiles) do
+        if isHarvestable(tile.x, tile.y) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function scanPlant(w, id, tiles)
+    reposition(w, id)
+    local count = 0
+    for _, tile in pairs(tiles) do
+        if isPlantable(tile.x, tile.y) then 
+            count = count + 1 
+        end
+    end
+    return count
+end
+
+local function scanSoil(w, id, tiles)
+    reposition(w, id)
+    local count = 0
+    for _, tile in pairs(tiles) do
+        if isSoilable(tile.x, tile.y) then count = count + 1 end
+    end
+    return count
+end
+
+local function getObjectCount(x, y, num)
+    local count = 0
+    local stack = 0
+    for _, obj in pairs(getObjects()) do
+        local object_x, object_y = math.floor((obj.x + 10) * (1 / 32)), math.floor((obj.y + 10) * (1 / 32))
+        if object_x == x and object_y == y then
+            stack = stack + 1
+            count = count + obj.count
+        end
+    end
+    return stack < 20 and count <= (4000 - num)
+end
+
+local function tileDrop(ex, ye, step)
+    local tiles = {}
+    local yList = {}
+    if step then
+        for y = ye , 0, step do
+            table.insert(yList, y)
+        end
+    else
+        for y = ye , 0, -1 do
+            table.insert(yList, y)
+        end
+    end
+    for i, y in pairs(yList) do
+        for x = ex, 98 do
+            table.insert(tiles, { x = x, y = y })
+        end
+    end
+    return tiles
+end
+
+local function clearHistoryWorld(w, id)
+    if clearHistory > 0 then
+        bot.custom_status = 'Clearing History'
+        while #clearWorld < clearHistory do 
+            table.insert(clearWorld, randomLetter(4)) 
+        end
+        for i = #clearWorld, 1, -1 do
+            local world = clearWorld[i]
+            warp(world, '')
+            if nuked then table.remove(clearWorld, i) end
+        end
+    end
+    if w and id then
+        warp(w, id)
+        sendBotInfo()
+        bot.auto_collect = true
+    end
+end
+
+local function botInfo(dialog)
+    bot.custom_status = dialog
+    sendBotInfo()
+    console(dialog)
+    while bot:isInWorld() do
+        bot:leaveWorld()
+        sleep(5000)
+    end
+    if removingBots then 
+        removeBot(bot.name) 
+    end
+    if sendNotif then 
+        notifications(dialog) 
+    end
+    return error(dialog)
+end
+
+local function checkAmount(items, amt)
+    for _, value in pairs(items) do
+        if backpack(value) > amt then return true end
+    end
+    return false
+end
+
+local function storeEvent(w, id)
+    bot.custom_status = 'Drop Events'
+    while checkAmount(specialEvent.eventList, 0) do
+        if #storageEvent == 0 then 
+            botInfo('No storage available drop events.') 
+        end
+        local index = math.random(#storageEvent)
+        local data = storageEvent[index]
+        bot.auto_collect = false
+        warp(data.world, data.door)
+        if not nuked then
+            if not wrong then
+                sendBotInfo()
+                for idx, v in ipairs(specialEvent.eventList) do
+                    for _, tile in pairs(tileDrop(dropEvent.x, dropEvent.y, -#specialEvent.eventList)) do
+                        if isCanFindpath(tile.x, tile.y - (idx - 1)) and isCanFindpath(tile.x - 1, tile.y - (idx - 1)) and getObjectCount(tile.x, tile.y - (idx - 1), backpack(v)) then
+                            while not bot:isInTile(tile.x - 1, tile.y - (idx - 1)) do
+                                bot:findPath(tile.x - 1, tile.y - (idx - 1))
+                                sleep(500)
+                                reposition(data.world, data.door)
+                            end
+                            while backpack(v) > 0 and getObjectCount(tile.x, tile.y - (idx - 1), backpack(v)) do
+                                bot:setDirection(false)
+                                bot:drop(v, backpack(v))
+                                sleep(delayDrop)
+                                reposition(data.world, data.door, tile.x - 1, tile.y - (idx - 1))
+                            end
+                        end
+                        if backpack(v) == 0 then break end
+                    end
+                end
+                eventInfo[data.world] = scanObjects('event')
+                sendStorageInfo(eventID, 'event')
+            else
+                writeFile(data.world..' ---STORAGE EVENT', files.ERROR)
+                console('['..data.world..'] has wrong ID, removing worlds')
+                table.remove(storageEvent, index)
+            end
+        else
+            writeFile(data.world..' ---STORAGE EVENT', files.ERROR)
+            console('['..data.world..'] has NUKED, removing worlds')
+            table.remove(storageEvent, index)
+        end
+    end
+    bot.custom_status = lastStatus
+    clearHistoryWorld(w, id)
+end
+
+local function storePack()
+    bot.custom_status = 'Drop Packs'
+    while checkAmount(buyPack.packList, 0) do
+        if #storagePack == 0 then 
+            botInfo('No storage available drop packs.') 
+        end
+        local index = math.random(#storagePack)
+        local data = storagePack[index]
+        bot.auto_collect = false
+        warp(data.world, data.door)
+        if not nuked then
+            if not wrong then
+                sendBotInfo()
+                for idx, v in ipairs(buyPack.packList) do
+                    for _, tile in pairs(tileDrop(dropPack.x, dropPack.y, -#buyPack.packList)) do
+                        if isCanFindpath(tile.x, tile.y - (idx - 1)) and isCanFindpath(tile.x - 1, tile.y - (idx - 1)) and getObjectCount(tile.x, tile.y - (idx - 1), backpack(v)) then
+                            while not bot:isInTile(tile.x - 1, tile.y - (idx - 1)) do
+                                bot:findPath(tile.x - 1, tile.y - (idx - 1))
+                                sleep(500)
+                                reposition(data.world, data.door)
+                            end
+                            while backpack(v) > 0 and getObjectCount(tile.x, tile.y - (idx - 1), backpack(v)) do
+                                bot:setDirection(false)
+                                bot:drop(v, backpack(v))
+                                sleep(delayDrop)
+                                reposition(data.world, data.door, tile.x - 1, tile.y - (idx - 1))
+                            end
+                        end
+                        if backpack(v) == 0 then break end
+                    end
+                end
+                packInfo[data.world] = scanObjects('pack')
+                sendStorageInfo(packID, 'pack')
+            else
+                writeFile(data.world..' ---STORAGE PACK', files.ERROR)
+                console('['..data.world..'] has wrong ID, removing worlds')
+                table.remove(storagePack, index)
+            end
+        else
+            writeFile(data.world..' ---STORAGE PACK', files.ERROR)
+            console('['..data.world..'] has NUKED, removing worlds')
+            table.remove(storagePack, index)
+        end
+    end
+end
+
+local function buying(w, id)
+    local lastStatus = bot.custom_status
+    bot.custom_status = 'Buying Pack'
+    if upBP and bot:getInventory().slotcount < 36 and bot.gem_count > 500 then
+        while bot:getInventory().slotcount < 36 and bot.gem_count > 500 do
+            bot:buy("upgrade_backpack")
+            sleep(500)
+            reconnect()
+        end
+    end
+    while bot.gem_count >= buyPack.pricePack do
+        bot:buy(buyPack.debug)
+        sleep(1000)
+        reconnect()
+        if checkAmount(buyPack.packList, 99) then break end
+    end
+    storePack()
+    bot.custom_status = lastStatus
+    clearHistoryWorld(w, id)
+end
+
+local function takeSeed(w, id)
+    local lastStatus = bot.custom_status
+    bot.custom_status = 'Take Seeds'
+    while backpack(seedID) == 0 do
+        if #originalFill == 0 then
+            originalFill = {table.unpack(fillBackup)}
+            console('All storage seed has empty, cant auto fill right now!')
+            break
+        end
+        local index = math.random(#originalFill)
+        local data = originalFill[index]
+        warp(data.world, data.door)
+        if not nuked then
+            if not wrong then
+                table.insert(fillBackup, index)
+                bot.auto_collect = true
+                while backpack(seedID) < 200 do
+                    local pathFound = false
+                    for _, obj in pairs(getObjects()) do
+                        if obj.id == seedID and isCanFindpath(round(obj.x / 32), math.floor(obj.y / 32)) then
+                            bot:findPath(round(obj.x / 32), math.floor(obj.y / 32))
+                            sleep(500)
+                            reposition(data.world, data.door)
+                            pathFound = true
+                            break
+                        end
+                    end
+                    if not pathFound then break end
+                end
+                if backpack(seedID) < 200 then
+                    console('['..data.world..'] Storage take seed has empty, removing worlds')
+                    table.remove(originalFill, index)
+                end
+            else
+                writeFile(data.world..' ---STORAGE TAKE SEED', files.ERROR)
+                console('['..data.world..'] Storage take seed has wrong ID, removing worlds')
+                table.remove(originalFill, index)
+            end
+        else
+            writeFile(data.world..' ---STORAGE SEED', files.ERROR)
+            writeConsole('['..data.world..'] Storage take seed has NUKED, removing worlds')
+            table.remove(originalFill, index)
+        end
+    end
+    bot.custom_status = lastStatus
+    warp(w, id)
+    sendBotInfo()
+end
+
+local function storeSeed(w, id)
+    local lastStatus = bot.custom_status
+    bot.custom_status = 'Drop Seeds'
+    while backpack(seedID) > 0 do
+        if #storageSeed == 0 then
+            botInfo('No world available for drop seeds.')
+        end
+        bot.auto_collect = false
+        local index = math.random(#storageSeed)
+        local data = storageSeed[index]
+        warp(data.world, data.door)
+        if not nuked then
+            if not wrong then
+                sendBotInfo()
+                if itemFloat(seedID) >= limitSeed then
+                    seedInfo[data.world] = 'LIMIT'
+                    console('['..data.world..'] may has reached limits, removing worlds')
+                    table.remove(storageSeed, index)
+                else
+                    for _, tile in pairs(tileDrop(dropSeed.x, dropSeed.y)) do
+                        if isCanFindpath(tile.x, tile.y) and isCanFindpath(tile.x - 1, tile.y) and getObjectCount(tile.x, tile.y, backpack(seedID)) then
+                            while not bot:isInTile(tile.x - 1, tile.y) do
+                                bot:findPath(tile.x - 1, tile.y)
+                                sleep(500)
+                                reposition(data.world, data.door)
+                            end
+                            while backpack(seedID) > 0 and getObjectCount(tile.x, tile.y, backpack(seedID)) do
+                                bot:setDirection(false)
+                                bot:drop(seedID, backpack(seedID))
+                                sleep(delayDrop)
+                                reposition(data.world, data.door, tile.x - 1, tile.y)
+                            end
+                        end
+                        if backpack(seedID) == 0 then break end
+                    end
+                    seedInfo[data.world] = scanObjects('seed')
+                end
+                sendStorageInfo(seedsID, 'seed')
+            else
+                writeFile(data.world..' ---STORAGE SEED', files.ERROR)
+                console('['..data.world..'] has wrong ID, removing worlds')
+                table.remove(storageSeed, index)
+            end
+        else
+            writeFile(data.world..' ---STORAGE SEED', files.ERROR)
+            console('['..data.world..'] has NUKED, removing worlds')
+            table.remove(storageSeed, index)
+        end
+    end
+    bot.custom_status = lastStatus
+    clearHistoryWorld(w, id)
+end
+
+local function wearingItemID(w, id, storage, item, keep)
+    local lastStatus = bot.custom_status
+    local title = {
+        [98] = 'Pickaxe',
+        [specialEvent.itemEventID] = 'Event',
+        [3066] = 'Firehose'
+    }
+    local str = title[item]
+    bot.custom_status = 'Wearing '..str
+    local storageWear = selectWorld(storage)
+    while not getInventory():getItem(item).isActive do
+        if #storageWear == 0 then 
+            botInfo('No storage available wear '..str..', check ur world') 
+        end
+        bot.auto_collect = false
+        local index = math.random(#storageWear)
+        local data = storageWear[index]
+        warp(data.world, data.door)
+        if not nuked then
+            if not wrong then
+                for _, obj in pairs(getObjects()) do
+                    if obj.id == item and isCanFindpath(round(obj.x / 32), math.floor(obj.y / 32)) then
+                        bot:findPath(round(obj.x / 32), math.floor(obj.y / 32))
+                        sleep(500)
+                        bot:collectObject(obj.oid, 3)
+                        sleep(500)
+                        reposition(data.world, data.door)
+                    end
+                    if backpack(item) >= keep then
+                        bot:moveLeft()
+                        sleep(250)
+                        bot:setDirection(false)
+                        while backpack(item) > keep do
+                            bot:drop(item, backpack(item) - keep)
+                            sleep(delayDrop)
+                            reposition(data.world, data.door)
+                        end
+                        bot:wear(item)
+                        sleep(500)
+                        reposition(data.world, data.door)
+                    end
+                    if getInventory():getItem(item).isActive then break end
+                end
+                sleep(3000)
+            else
+                writeFile(data.world..' ---Storage '..str, files.ERROR)
+                console('['..data.world..'] has wrong ID, removing worlds')
+                table.remove(storageWear, index)
+            end
+        else
+            writeFile(data.world..' ---Storage '..str, files.ERROR)
+            console('['..data.world..'] has NUKED, removing worlds')
+            table.remove(storageWear, index)
+        end
+    end
+    warp(w, id)
+    sendBotInfo()
+    bot.custom_status, bot.auto_collect = lastStatus, true
+end
+
+local function tilePlace(x, y, case)
+    for _, ye in pairs(tilePNB) do
+        if getTile(x, y + ye).fg == 0 and getTile(x, y + ye).bg == 0 and hasAccess(x, y + ye) > 0 and not getTile(x, y + ye):hasFlag(4096) then
+            return true
+        end
+    end
+    return false
+end
+
+local function tilePunch(x, y, case)
+    for _, ye in pairs(tilePNB) do
+        if (getTile(x, y + ye).fg ~= 0 or getTile(x, y + ye).bg ~= 0 and hasAccess(x, y + ye) > 0 and not getTile(x, y + ye):hasFlag(4096)) then
+            return true
+        end
+    end
+    return false
+end
+
+local function wearPickaxe(w, id)
+    if not getInventory():getItem(98).isActive and wearPickaxes then
+        if backpack(98) == 0 then 
+            wearingItemID(w, id, worldPickaxe, 98, 1)
+        else
+            while not getInventory():getItem(98).isActive do
+                bot:wear(98)
+                sleep(250)
+                reposition(w, id)
+            end
+        end
+    end
+end
+
+local function buildWorlds(w, id)
+    local lockedWorld = {242, 9640, 202, 204, 206, 1796, 4994, 7188, 2408, 2950, 4428, 4802, 5814, 5260, 5980, 8470, 10410, 11550, 11586 }
+    local function scanLock()
+        for _, value in pairs(lockedWorld) do
+            for _, tile in pairs(getTiles()) do
+                if tile.fg == value then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+    local lastStatus = bot.custom_status
+    bot.custom_status = 'Build a new worlds'
+    ::back::
+    if backpack(242) > 0 or bot.gem_count >= 2000 then
+        while bot.gem_count >= 2000 and backpack(242) < 1 do
+            bot:buy('world_lock')
+            sleep(500)
+            reposition(w, id)
+        end
+        local rand = randomLetter(12)
+        while backpack(242) > 0 do
+            warp(rand, '')
+            if not nuked then 
+                if not scanLock() then
+                    while getTile(bot.x, bot.y - 1).fg ~= 242 do
+                        bot:place(bot.x, bot.y - 1, 242)
+                        delay(delayPlace)
+                        reposition(rand, '')
+                    end
+                    bot.auto_ban = true
+                    local found = false
+                    while getTile(bot.x, bot.y - 1).fg == 242 and not found do
+                        addEvent(Event.variantlist, function(variant, netid)
+                            if variant:get(0):getString() == "OnDialogRequest" then
+                                local text = variant:get(1):getString()
+                                if text:find("add_label_with_icon") then
+                                    local dialog = text:match("Edit World Lock")
+                                    if dialog then
+                                        sleep(3000)
+                                        bot:sendPacket(2, "action|dialog_return\ndialog_name|lock_edit\ntilex|" .. bot.x .. "|\ntiley|" .. (bot.y - 1) .."|\ncheckbox_public|0\ncheckbox_disable_music|0\ntempo|100\ncheckbox_disable_music_render|0\ncheckbox_set_as_home_world|0\nminimum_entry_level|124")
+                                        sleep(2000)
+                                        found = true
+                                        unlistenEvents()
+                                    end
+                                end
+                            end
+                        end)
+                        if botConditions() then
+                            bot:wrench(bot.x, bot.y - 1)
+                            listenEvents(5)
+                        end
+                        reposition(rand, '')
+                    end
+                    removeEvent(Event.variantlist)
+                    table.insert(pnbList, {world = rand, door = ''})
+                    bot.auto_ban = false
+                    buyPack.enabled = isBuyPack
+                else
+                    rand = randomLetter(12)
+                end
+            else
+                rand = randomLetter(12)
+            end
+        end
+    else
+        buyPack.enabled = false
+        warp(w, id)
+        if not nuked then
+            wearPickaxe(w, id)
+            local botX, botY
+            repeat
+                botX, botY = 98, math.random(10, 40)
+                bot:findPath(botX, botY)
+                sleep(500)
+                reposition(w, id)
+            until bot:isInTile(botX, botY) and isCanFindpath(botX, botY)
+            if not bot.auto_collect then
+                bot.auto_collect = true
+            end
+            while backpack(blockID) >= tileBreak and backpack(seedID) < 190 and not nuked do
+                while tilePlace(botX + 1, botY) do
+                    for _, y in pairs(tilePNB) do
+                        if getTile(botX + 1, botY + y).fg == 0 and getTile(botX + 1, botY + y).bg == 0 then
+                            bot:place(botX + 1, botY + y, blockID)
+                            delay(delayPlace)
+                            reposition(w, id, botX, botY)
+                        end
+                    end
+                end
+                while tilePunch(botX + 1, botY) do
+                    for _, y in pairs(tilePNB) do
+                        if getTile(botX + 1, botY + y).fg ~= 0 or getTile(botX + 1, botY + y).bg ~= 0 then
+                            bot:hit(botX + 1, botY + y)
+                            delay(delayPunch)
+                            reposition(w, id, botX, botY)
+                        end
+                    end
+                end
+                while bot.gem_count >= 2000 and backpack(242) < 1 do
+                    bot:buy('world_lock')
+                    sleep(500)
+                    reposition(w, id)
+                end
+                if backpack(242) >= 1 then goto back end
+            end
+        else
+            console('Cant warp to farm, nuked maybe?')
+        end
+    end
+    bot.custom_status = lastStatus
+    warp(w, id)
+    sendBotInfo()
+    bot.auto_collect = true
+end
+
+local function itemTrashed(tbl, id)
+    for _, num in pairs(tbl) do
+        if num == id then
+            return true
+        end
+    end
+    return false
+end
+
+local function pnb(w, id)
+    local lastStatus = bot.custom_status
+    bot.custom_status = 'PNB'
+    ::back::
+    if #pnbList == 0 then
+        buildWorlds(w, id)
+    else
+        local index = math.random(#pnbList)
+        local data = pnbList[index]
+        warp(data.world, data.door)
+        if not nuked then
+            if not wrong then
+                local botX, botY
+                wearPickaxe(data.world, data.door)
+                if not bot:isInTile(posBreak.x, posBreak.y) and not isCanFindpath(posBreak.x, posBreak.y) then
+                    repeat
+                        botX, botY = math.random(3, 95), math.random(3, 18)
+                        bot:findPath(botX, botY)
+                        sleep(500)
+                        reposition(data.world, data.door)
+                    until bot:isInTile(botX, botY) and isCanFindpath(botX, botY)
+                else
+                    botX, botY = posBreak.x, posBreak.y
+                    while not bot:isInTile(botX, botY) and isCanFindpath(botX, botY) do
+                        bot:findPath(botX, botY)
+                        sleep(500)
+                        reposition(data.world, data.door)
+                    end
+                end
+                if not bot.auto_collect then
+                    bot.auto_collect = true
+                end
+                while backpack(blockID) >= tileBreak and backpack(seedID) < 190 and not nuked do
+                    while tilePlace(botX + 1, botY) do
+                        for _, y in pairs(tilePNB) do
+                            if getTile(botX + 1, botY + y).fg == 0 and getTile(botX + 1, botY + y).bg == 0 then
+                                bot:place(botX + 1, botY + y, blockID)
+                                delay(delayPlace)
+                                reposition(data.world, data.door, botX, botY)
+                            end
+                        end
+                    end
+                    while tilePunch(botX + 1, botY) do
+                        for _, y in pairs(tilePNB) do
+                            if getTile(botX + 1, botY + y).fg ~= 0 or getTile(botX + 1, botY + y).bg ~= 0 then
+                                bot:hit(botX + 1, botY + y)
+                                delay(delayPunch)
+                                reposition(data.world, data.door, botX, botY)
+                            end
+                        end
+                    end
+                    if stopOnLevel ~= 0 and bot.level >= stopOnLevel then
+                        if removingBots then
+                            removeBot(bot.name)
+                        else
+                            while bot:isInWorld() do
+                                bot:leaveWorld()
+                                sleep(5000)
+                            end
+                            bot.custom_status = 'Bot reached max level'
+                            return error(bot.custom_status)
+                        end
+                    elseif bot.gem_count >= buyPack.mingems and buyPack.enabled then
+                        buying(data.world, data.door)
+                        reposition(data.world, data.door, botX, botY)
+                    elseif codeMalady ~= 0 then
+                        while bot.gem_count >= 2000 and backpack(242) < priceCure do
+                            bot:buy('world_lock')
+                            sleep(500)
+                            reposition(data.world, data.door, botX, botY)
+                        end
+                        if backpack(242) >= priceCure then malady = 0 end
+                    end
+                end
+                for _, item in pairs(getInventory():getItems()) do
+                    if not itemTrashed(dontTrash, item.id) then
+                        bot:trash(item.id, backpack(item.id))
+                        sleep(500)
+                        reposition(data.world, data.door)
+                    end
+                end
+            else
+                table.remove(pnbList, index)
+                goto back
+            end
+        else
+            table.remove(pnbList, index)
+            goto back
+        end
+    end
+    bot.custom_status = lastStatus
+    warp(w, id)
+    if not bot.auto_collect then
+        bot.auto_collect = true
+    end
+end
+
+local function isSoilFarm(w, id, tiles)
+    if not harvestSoil then return end
+    local lastStatus = bot.custom_status
+    bot.custom_status, bot.auto_collect = 'Harvest Soil', true
+    while scanSoil(w, id, tiles) do
+        for _, tile in pairs(tiles) do
+            if isSoilable(tile.x, tile.y) then
+                findPath(tile.x, tile.y)
+                reposition(w, id)
+                if isSoilable(tile.x, tile.y) then
+                    bot:hit(tile.x, tile.y + 1)
+                    delay(delayHarvest)
+                    reposition(w, id, tile.x, tile.y)
+                end
+            end
+            if stopOnLevel ~= 0 and bot.level >= stopOnLevel then
+                if removingBots then
+                    removeBot(bot.name)
+                else
+                    while bot:isInWorld() do
+                        bot:leaveWorld()
+                        sleep(5000)
+                    end
+                    bot.custom_status = 'Bot reached max level'
+                    return error(bot.custom_status)
+                end
+            end
+        end
+    end
+    bot.custom_status = lastStatus
+end
+
+local function plant(world, id, tiles, finish, fill)
+    local lastStatus = bot.custom_status
+    local seedEmpty = false
+    while scanPlant(world, id, tiles) > 0 and not seedEmpty and not dontPlant do
+        for _, tile in pairs(tiles) do
+            if isPlantable(tile.x, tile.y) then
+                findPath(tile.x, tile.y)
+                reposition(world, id)
+                while isPlantable(tile.x, tile.y) do
+                    bot:place(tile.x, tile.y, seedID)
+                    delay(delayPlant)
+                    reposition(world, id, tile.x, tile.y)
+                end
+            end
+            if backpack(seedID) == 0 then
+                if fill then
+                    takeSeed(world, id)
+                    if backpack(seedID) == 0 then return end
+                else 
+                    seedEmpty = true
+                    break 
+                end
+            end
+        end
+    end
+    local amount = (finish and 1 or 100)
+    if backpack(seedID) >= amount then
+        if not autoPlantProfitSeed and not storeAtFarm then
+            storeSeed(world, id)
+        elseif storeAtFarm then
+            bot.custom_status = 'Drop seed on farm'
+            local x, y = bot.x, bot.y
+            local botX, botY
+            repeat
+                botX = 5
+                if y > 26 then
+                    botY = math.random(0, 24)
+                else
+                    botY = math.random(28, 53)
+                end
+                bot:findPath(botX, botY)
+                sleep(500)
+                reposition(world, id)
+            until bot:isInTile(botX, botY) and isCanFindpath(botX, botY) and isCanFindpath(botX + 1, botY)
+            bot.auto_collect = false
+            while backpack(seedID) > 0 and getObjectCount(botX + 1, botY, 100) do
+                bot:setDirection(false)
+                bot:drop(seedID, backpack(seedID))
+                sleep(delayDrop)
+                reposition(world, id, botX, botY)
+            end
+            reposition(world, id, x, y)
+            bot.custom_status = lastStatus
+        end
+    end
+    if not bot.auto_collect then
+        bot.auto_collect = true
+    end
+end
+
+local function plantProfitSeed(w, id)
+    if not autoPlantProfitSeed then return end
+    local lastStatus = bot.custom_status
+    bot.custom_status = 'Planting profit seed'
+    while backpack(seedID) >= 100 do
+        if #storageSeed == 0 then
+            autoPlantProfitSeed = false
+            storeAtFarm = true
+        else
+            local index = math.random(#storageSeed)
+            local data = storageSeed[index]
+            warp(data.world, data.door)
+            if not nuked then
+                if not wrong then
+                    local tiles = customTiles()
+                    if scanPlant(data.world, data.door, tiles) == 0 then
+                        table.remove(storageSeed, index)
+                    else
+                        plant(data.world, data.door, tiles)
+                    end
+                else
+                    writeFile(data.world..' ---PLANT PROFIT SEED', files.ERROR)
+                    console('['..data.world..'] farm to plant profit seed has wrong door ID, removing worlds')
+                    table.remove(storageSeed, index)
+                end
+            else
+                writeFile(data.world..' ---PLANT PROFIT SEED', files.ERROR)
+                console('['..data.world..'] farm to plant profit seed has NUKED, removing worlds')
+                table.remove(storageSeed, index)
+            end
+        end
+    end
+    bot.custom_status = lastStatus
+    warp(world, id)
+end
+
+local function scanFloat(itm)
+    local count = 0
+    for _, obj in pairs(getObjects()) do
+        if obj.id == itm and isCanFindpath(round(obj.x / 32), math.floor(obj.y / 32)) then
+            count = count + obj.count
+        end
+    end
+    return count
+end
+
+local function collectFloat(w, id, tiles)
+    if ((botLeveling and bot.level >= startLeveling) or not botLeveling) then
+        local lastStatus = bot.custom_status
+        bot.custom_status, bot.auto_collect = 'Collect Float', true
+        local itemOnFloat = {blockID, 112}
+        if specialEvent.enabled then
+            for _, v in pairs(specialEvent.eventList) do
+                table.insert(itemOnFloat, v)
+            end
+        end
+        if not storeAtFarm then table.insert(itemOnFloat, seedID) end
+        if harvestSoil then table.insert(itemOnFloat, 8746) end
+        for _, item in pairs(itemOnFloat) do
+            while scanFloat(item) > 0 do
+                for _, obj in pairs(getObjects()) do
+                    if obj.id == item and isCanFindpath(round(obj.x / 32), math.floor(obj.y / 32)) then
+                        findPath(round(obj.x / 32), math.floor(obj.y / 32))
+                        reposition(w, id)
+                        break
+                    end
+                end
+                if harvestSoil and backpack(8746) >= 180 then
+                    bot:trash(8746, backpack(8746))
+                    sleep(500)
+                    reposition(w, id)
+                elseif checkAmount(specialEvent.eventList, 99) and specialEvent.enabled then 
+                    storeEvent(w, id)
+                elseif backpack(seedID) >= 190 then 
+                    plant(w, id, tiles)
+                    plantProfitSeed(w, id)
+                elseif bot.gem_count >= buyPack.mingems and buyPack.enabled then 
+                    buying(w, id) 
+                elseif backpack(blockID) >= 180 and ((botLeveling and bot.level >= startLeveling) or not botLeveling) then
+                    pnb(w, id)
+                end
+            end
+        end
+        bot.custom_status = lastStatus
+    end
+end
+
+local function harvest(w, id, tiles)
+    if not bot.auto_collect then
+        bot.auto_collect = true
+    end
+    while scanTiles(w, id, tiles) > 0 do
+        for _, tile in pairs(tiles) do
+            if isHarvestable(tile.x, tile.y) then
+                findPath(tile.x, tile.y)
+                reposition(w, id)
+                while isHarvestable(tile.x, tile.y) do
+                    bot:hit(tile.x, tile.y)
+                    delay(delayHarvest)
+                    reposition(w, id, tile.x, tile.y)
+                end
+            end
+            if not getInventory():getItem(specialEvent.itemEventID).isActive and specialEvent.wearItemEvent and specialEvent.enabled then
+                if backpack(specialEvent.itemEventID) == 0 then 
+                    wearingItemID(w, id, specialEvent.worldWear, specialEvent.itemEventID, specialEvent.keepItemEventID)
+                else
+                    while not getInventory():getItem(specialEvent.itemEventID).isActive do
+                        bot:wear(specialEvent.itemEventID)
+                        sleep(250)
+                        reposition(w, id)
+                    end
+                end
+            elseif botLeveling and bot.level >= stopLeveling then
+                return
+            elseif stopOnLevel ~= 0 and bot.level >= stopOnLevel then
+                if removingBots then
+                    removeBot(bot.name)
+                else
+                    while bot:isInWorld() do
+                        bot:leaveWorld()
+                        sleep(5000)
+                    end
+                    bot.custom_status = 'Bot reached max level'
+                    return error(bot.custom_status)
+                end
+            elseif backpack(seedID) >= 190 then
+                plant(w, id, tiles)
+                plantProfitSeed(w, id)
+            elseif checkAmount(specialEvent.eventList, 99) and specialEvent.enabled then 
+                storeEvent(w, id)
+            elseif bot.gem_count >= buyPack.mingems and buyPack.enabled then 
+                buying(w, id) 
+            elseif ((botLeveling and bot.level >= startLeveling) or not botLeveling) then
+                if hasFloat then
+                    hasFloat = false
+                    collectFloat(w, id, tiles)
+                else
+                    if backpack(blockID) >= 190 then
+                        isSoilFarm(w, id, tiles)
+                        pnb(w, id) 
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function getTutorialWorld()
+    local name = {}
+    local found = false
+    while not bot:isInWorld() do
+        warp(randomLetter(4))
+        if not nuked then break end
+    end
+    addEvent(Event.variantlist, function(variant, netid)
+        if variant:get(0):getString() == "OnDialogRequest" then
+            local dialog = variant:get(1):getString()
+            if dialog:find("myWorldsUiTab_0") then
+                for v in dialog:gmatch("add_button|(%w+)|") do
+                    table.insert(name, v)
+                end
+                sleep(2000)
+                found = true
+                unlistenEvents()
+            end
+        end
+    end)
+    while not found and botConditions() do
+        reconnect()
+        bot:wrenchPlayer(getLocal().netid)
+        sleep(3000)
+        bot:sendPacket(2, "action|dialog_return\ndialog_name|popup\nnetID|" .. getLocal().netid .. "|\nbuttonClicked|my_worlds")
+        listenEvents(5)
+    end
+    removeEvent(Event.variantlist)
+    return name
+end
+
+local function scanToxic(w, id, tiles)
+    reposition(w, id)
+    for _, tile in pairs(tiles) do
+        if getTile(tile.x, tile.y).fg == 778 then
+            return true
+        end
+    end
+    return false
+end
+
+local function scanStone(w, id, tiles)
+    reposition(w, id)
+    for _, tile in pairs(tiles) do
+        if getTile(tile.x, tile.y).fg == 7808 then
+            return true
+        end
+    end
+    return false
+end
+
+local function scanFire(w, id, tiles)
+    reposition(w, id)
+    for _, tile in pairs(tiles) do
+        if getTile(tile.x, tile.y).flags == 4096 then
+            return true
+        end
+    end
+    return false
+end
+
+local function storeFireHose(w, id)
+    local lastStatus = bot.custom_status
+    local storageFireHose = selectWorld(worldFireHose)
+    bot.custom_status, bot.auto_collect = 'Drop firehose', false
+    while backpack(3066) > 0 do
+        if #storageFireHose == 0 then
+            botInfo('No worlds available to drop Firehose')
+        end
+        local index = math.random(#storageFireHose)
+        local data = storageFireHose[index]
+        warp(data.world, data.door)
+        if not nuked then
+            if not wrong then
+                for _, tile in pairs(tileDrop(0, 53)) do
+                    if isCanFindpath(tile.x, tile.y) and isCanFindpath(tile.x - 1, tile.y) and getObjectCount(tile.x, tile.y, backpack(3066)) then
+                        while not bot:isInTile(tile.x - 1, tile.y) do
+                            bot:findPath(tile.x - 1, tile.y)
+                            sleep(500)
+                            reposition(data.world, data.door)
+                        end
+                        while backpack(3066) > 0 and getObjectCount(tile.x, tile.y, backpack(3066)) do
+                            bot:setDirection(false)
+                            bot:drop(3066, backpack(3066))
+                            sleep(delayDrop)
+                            reposition(data.world, data.door, tile.x - 1, tile.y)
+                        end
+                    end
+                    if backpack(3066) == 0 then break end
+                end
+            else
+                writeFile(world..' ---STORAGE DROP HOSE', files.ERROR)
+                console('['..world..'] Storage drop hose has wrong ID, removing worlds')
+                table.remove(storageFireHose, index)
+            end
+        else
+            writeFile(world..' ---STORAGE DROP HOSE', files.ERROR)
+            console('['..world..'] Storage drop hose has NUKED, removing worlds')
+            table.remove(storageFireHose, index)
+        end
+    end
+    warp(w, id)
+    sendBotInfo()
+    bot.custom_status, bot.auto_collect = lastStatus, true
+end
+
+local function extract(item)
+    for _, v in pairs(item) do
+        table.insert(dontTrash, v)
+    end
+end
+
+if scriptInformation == "Script Rotation developed by : CRUS4DER | Script Store, Link Discord : https://discord.gg/etM6H4D84Z" and scriptVersion == "0.2" then    
+    extract(whiteList)
+    extract(buyPack.packList)
+    extract(specialEvent.eventList)
+
+    if autoCureMalady then
+        for _ = 1, 3 do spam.messages:add(sentences()) end
+    end
+
+    for i = math.floor(tileBreak/2), 1, - 1 do
+        i = i * - 1
+        table.insert(tilePNB, i)
+    end
+    for i = 0, math.ceil(tileBreak/2) - 1 do
+        table.insert(tilePNB, i)
+    end
+
+    storageSeed = selectWorld(worldSeed)
+    storagePack = selectWorld(worldPack)
+    storageEvent = selectWorld(worldEvent)
+
+    for _, file in pairs({files.ERROR, files.SEED[2], files.PACK[2], files.EVENT[2]}) do
+        if fileExists(file) then deleteFile(file) end
+    end
+
+    if bot.index ~= 1 then sleep(bot.index * (1000 * delayExecute)) end
+
+    messageID = createWebhook(linkBotView, files.VIEW)
+    seedsID = createWebhook(linkStorageInfo, files.SEED[1])
+    packID = createWebhook(linkStorageInfo, files.PACK[1])
+    eventID = createWebhook(linkStorageInfo, files.EVENT[1])
+
+    sendBotInfo()
+    reconnect()
+    fixMalady()
+
+    while botLeveling and bot.level < stopLeveling do
+        spreadWorld(worldLeveling, farmList)
+        local saveBlock = blockID
+        local saveSeed = seedID
+        autoPlantProfitSeed = false
+        if isAutoPlant then storeAtFarm = true end
+        blockID = blockLeveling
+        seedID = seedLeveling
+        for _, data in pairs(farmList) do
+            bot.custom_status = 'Start Leveling'
+            warp(data.world, data.door)
+            if not nuked then
+                if not wrong then
+                    isNormalDF = checkDF(data.world, data.door)
+                    local tiles = customTiles()
+                    hasFloat = true
+                    if not pnbInCustomWorld and not pnbInTutorial and #pnbList == 0 then
+                        buildWorlds(data.world, data.door)
+                    elseif pnbInCustomWorld and #pnbList == 0 then
+                        spreadWorld(pnbCustomWorld, pnbList)
+                    elseif pnbInTutorial and #pnbList == 0  then
+                        pnbList = selectWorld(getTutorialWorld())
+                        if #pnbList == 0 then
+                            buildWorlds(data.world, data.door)
+                        end
+                    end
+                    bot.custom_status = 'Harvesting'
+                    harvest(data.world, data.door, tiles)
+                    collectFloat(data.world, data.door, tiles)
+                    if bot.level >= stopLeveling then
+                        while backpack(blockID) >= tileBreak do
+                            pnb(data.world, data.door)
+                            plant(data.world, data.door, tiles, true)
+                            sleep(1000)
+                        end
+                        break
+                    end
+                end
+            end
+        end
+        farmList = {}
+        autoPlantProfitSeed = isAutoPlant
+        storeAtFarm = isStore
+        blockID = saveBlock
+        seedID = saveSeed
+    end
+    botLeveling = false
+    spreadWorld(worldList, farmList)
+    if storeAtFarm then
+        for _, data in pairs(farmList) do
+            table.insert(originalFill, data)
+        end
+    else
+        for _, worlds in pairs(storageSeed) do
+            table.insert(originalFill, worlds)
+        end
+    end
+    local rest = 0
+    while (looping ~= 0 and rotation < looping) or (looping == 0) do
+        for _, data in pairs(farmList) do
+            bot.custom_status = 'Start Rotation'
+            warp(data.world, data.door)
+            if not nuked then
+                if not wrong then
+                    table.insert(originalFarm, data)
+                    isNormalDF = checkDF(data.world, data.door)
+                    local tiles = customTiles()
+                    if scanStone(data.world, data.door, tiles) then
+                        bot.custom_status = 'Clearing Hearcastle Stone'
+                        while scanStone(data.world, data.door, tiles) do
+                            local canClear = false
+                            for _, tile in pairs(tiles) do
+                                if getTile(tile.x, tile.y).fg == 7808 then
+                                    local target = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
+                                    for _, offset in pairs(target) do
+                                        local botX, botY = tile.x + offset[1], tile.y + offset[2]
+                                        if isCanFindpath(botX, botY) then
+                                            while not bot:isInTile(botX, botY) do
+                                                bot:findPath(botX, botY)
+                                                sleep(500)
+                                                reposition(data.world, data.door)
+                                            end
+                                            while getTile(tile.x, tile.y).fg == 7808 do
+                                                bot:hit(tile.x, tile.y)
+                                                delay(delayPunch)
+                                                reposition(data.world, data.door, botX, botY)
+                                            end
+                                            canClear = true
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                            if not canClear then break end
+                        end
+                    end
+                    if scanToxic(data.world, data.door, tiles) then
+                        bot.custom_status = 'Clearing Toxic'
+                        bot.anti_toxic = true
+                        while scanToxic(data.world, data.door, tiles) do
+                            sleep(10000)
+                            reposition(data.world, data.door)
+                        end
+                        bot.anti_toxic = false
+                    end
+                    local cleanFire = true
+                    local fired = false
+                    if scanFire(data.world, data.door, tiles) then
+                        fired = true
+                        if cleanFire then
+                            bot.custom_status, bot.legit_mode = "Clearing Fire", true
+                            wearingItemID(data.world, data.door, worldFireHose, 3066, 1)
+                            bot.anti_fire = true
+                            while scanFire(data.world, data.door, tiles) do
+                                sleep(10000)
+                                reposition(data.world, data.door)
+                            end
+                            fired = false 
+                            bot.anti_fire, bot.legit_mode = false, false
+                            storeFireHose(data.world, data.door)
+                        end
+                    end
+                    if not pnbInCustomWorld and not pnbInTutorial and #pnbList == 0 then
+                        buildWorlds(data.world, data.door)
+                    elseif pnbInCustomWorld and #pnbList == 0 then
+                        spreadWorld(pnbCustomWorld, pnbList)
+                    elseif pnbInTutorial and #pnbList == 0  then
+                        pnbList = selectWorld(getTutorialWorld())
+                        if #pnbList == 0 then
+                            buildWorlds(data.world, data.door)
+                        end
+                    end
+                    if not fired then
+                        bot.custom_status = 'Harvesting'
+                        hasFloat = true
+                        harvest(data.world, data.door, tiles)
+                        collectFloat(data.world, data.door, tiles)
+                        while backpack(blockID) >= tileBreak do
+                            pnb(data.world, data.door)
+                            plant(data.world, data.door, tiles, true)
+                            sleep(1000)
+                        end
+
+                        if autoFill and not dontPlant and not autoPlantProfitSeed then
+                            bot.custom_status = 'Auto Fill'
+                            plant(data.world, data.door, tiles, true, true)
+                        end
+                    else
+                        writeFile(data.world..' ---FARM', files.ERROR)
+                        console('['..data.world..'] Bot cant clear fire. Please clear fire in the world.')
+                    end
+                else 
+                    writeFile(data.world..' ---FARM', files.ERROR)
+                    console('['..data.world..'] farm has wrong door ID, removing worlds')
+                end
+            else
+                writeFile(data.world..' ---FARM', files.ERROR)
+                console('['..data.world..'] farm has NUKED, removing worlds')
+            end
+            rest = rest + 1
+            if (restEachFarm ~= 0 and (rest % restEachFarm == 0)) then
+                local lastStatus = bot.custom_status
+                bot.custom_status, bot.auto_reconnect = "Resting " .. restDuration .. " minutes", false
+                console("is now resting for " .. restDuration .. " minutes")
+                if disconnectOnRest then
+                    while bot.status == BotStatus.online do
+                        bot:disconnect()
+                        sleep(5000)
+                    end
+                else
+                    while bot:isInWorld() do
+                        bot:leaveWorld()
+                        sleep(5000)
+                    end
+                end
+                sleep(restDuration * 60000)
+                bot.auto_reconnect, bot.custom_status = true, lastStatus
+            end
+        end
+        rotation = rotation + 1
+        if (restEachLoop ~= 0 and (rotation % restEachLoop == 0)) then
+            local lastStatus = bot.custom_status
+            bot.custom_status, bot.auto_reconnect = "Resting " .. restDuration .. " minutes", false
+            sendInfo("is now resting for " .. restDuration .. " minutes")
+            if disconnectOnRest then
+                while bot.status == BotStatus.online do
+                    bot:disconnect()
+                    sleep(5000)
+                end
+            else
+                while bot:isInWorld() do
+                    bot:leaveWorld()
+                    sleep(5000)
+                end
+            end
+            sleep(restDuration * 60000)
+            bot.auto_reconnect, bot.custom_status = true, lastStatus
+        end
+        farmWorld = {table.unpack(originalFarm)}
+    end
+    botInfo('Bot has finished rotating all farm worlds')
+else
+    sendNotif = true                                    
+    notifications('Buying from reseller? u are idiot people')
+end
