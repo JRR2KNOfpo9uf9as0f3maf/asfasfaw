@@ -13,12 +13,10 @@ local function base64_encode(data)
     end) .. ({ '', '==', '=' })[#data % 3 + 1])
 end
 
--- XOR tanpa bit32 (Berfungsi di Lua 5.3+)
 local function xor_encrypt(input, key)
     local output = {}
     for i = 1, #input do
-        local xor_val = (input:byte(i) ~ key) % 256
-        output[i] = string.char(xor_val)
+        output[i] = string.char((input:byte(i) ~ key) % 256)
     end
     return table.concat(output)
 end
@@ -41,25 +39,23 @@ local function obfuscate(file)
     local output = "encrypted_" .. file
     local f_out = io.open(output, "w")
     
-    -- Kode langsung terenkripsi tanpa fungsi tambahan
-    f_out:write(string.format([[
-load((function() 
-    local base64_chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-    local encoded_data = "%s"
-    local key = %d
-    local decode_map, decoded_str, buffer = {}, '', ''
-
-    for i = 1, #base64_chars do decode_map[base64_chars:sub(i, i)] = i - 1 end
-    for i = 1, #encoded_data do
-        local char = encoded_data:sub(i, i)
-        buffer = buffer .. (decode_map[char] and string.format('%06d', tonumber(tostring(decode_map[char]), 2)) or '')
-    end
-    for i = 1, #buffer, 8 do
-        local byte = tonumber(buffer:sub(i, i + 7), 2)
-        decoded_str = decoded_str .. string.char(byte ~ key)
-    end
-    return decoded_str
-end)()) ]], encoded, key))
+    -- Kode terenkripsi tanpa fungsi tambahan
+    f_out:write(string.format([[load((function()
+        local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+        local e = "%s"
+        local k = %d
+        local d, r = {}, ""
+        for i = 1, #b do d[b:sub(i, i)] = i - 1 end
+        for i = 1, #e do
+            local c = e:sub(i, i)
+            r = r .. (d[c] and string.format('%06d', tonumber(tostring(d[c]), 2)) or "")
+        end
+        local final_code = ""
+        for i = 1, #r, 8 do
+            final_code = final_code .. string.char((tonumber(r:sub(i, i + 7), 2) ~ k) %% 256)
+        end
+        return final_code
+    end)())]], encoded, key))
 
     f_out:close()
     print("Obfuscation selesai! File disimpan sebagai: " .. output)
@@ -67,3 +63,4 @@ end
 
 -- Masukkan nama file yang ingin dienkripsi
 obfuscate("CRUS4DER DF 0.1.lua.txt")
+puki
