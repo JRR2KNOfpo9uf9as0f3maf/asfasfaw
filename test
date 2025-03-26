@@ -1,19 +1,42 @@
+local BytecodeEncoder = {}
+
+local function encode_bytecode(bytecode, offset)
+    local encoded = {}
+    for i = 1, #bytecode do
+        local byte = bytecode:byte(i)
+        local shifted_byte = (byte + offset) % 256
+        table.insert(encoded, string.format("%02X", shifted_byte))
+    end
+    return table.concat(encoded)
+end
+
 function BytecodeEncoder.process(code)
     math.randomseed(os.time()) -- Pastikan random seed diinisialisasi
 
+    -- Coba compile kode, kalau gagal beri error
     local fn, err = load(code)
     if not fn then
         error("Bytecode encoding failed: " .. tostring(err))
     end
 
+    -- Dump ke bytecode
     local bytecode = string.dump(fn)
+    
+    -- Pastikan bytecode tidak kosong
+    if not bytecode or bytecode == "" then
+        error("Bytecode encoding error: bytecode is empty")
+    end
+
+    -- Buat random offset
     local offset = math.random(1, 255)
     local encoded_bytecode = encode_bytecode(bytecode, offset)
 
+    -- Pastikan hasil encoding tidak kosong
     if not encoded_bytecode or encoded_bytecode == "" then
         error("Bytecode encoding error: encoded bytecode is empty")
     end
 
+    -- Template untuk men-decode bytecode
     local alpha = [[
         local e, o, d = "%s", %d, {}
         for i = 1, #e, 2 do
@@ -22,7 +45,11 @@ function BytecodeEncoder.process(code)
             d[#d + 1] = string.char(b)
         end
         local f = assert(load(table.concat(d)))
-        f()
+        return f -- Kembalikan function agar bisa dieksekusi
     ]]
+
+    -- Kembalikan hasil encoding yang sudah diproses dengan string.format
     return string.format(alpha, encoded_bytecode, offset)
 end
+
+return BytecodeEncoder
