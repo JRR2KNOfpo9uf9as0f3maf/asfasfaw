@@ -35,32 +35,45 @@ local function obfuscate(file)
     local encrypted_code = xor_encrypt(code, key) -- XOR Enkripsi
     local encoded = base64_encode(encrypted_code) -- Base64 Encode
 
+    -- Pastikan semua variabel ada sebelum format
+    if not encoded or not key then
+        print("Error: Encoding gagal!")
+        return
+    end
+
     -- Simpan ke file baru
     local output = "encrypted_" .. file
     local f_out = io.open(output, "w")
-    
-    -- Kode terenkripsi tanpa fungsi tambahan
-    f_out:write(string.format([[load((function()
-        local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-        local e = "%s"
-        local k = %d
-        local d, r = {}, ""
-        for i = 1, #b do d[b:sub(i, i)] = i - 1 end
-        for i = 1, #e do
-            local c = e:sub(i, i)
-            r = r .. (d[c] and string.format('%06d', tonumber(tostring(d[c]), 2)) or "")
-        end
-        local final_code = ""
-        for i = 1, #r, 8 do
-            final_code = final_code .. string.char((tonumber(r:sub(i, i + 7), 2) ~ k) %% 256)
-        end
-        return final_code
-    end)())]], encoded, key))
 
+    -- Kode terenkripsi tanpa fungsi tambahan
+    local encrypted_script = string.format([[
+load((function()
+    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    local e = "%s";
+    local k = %d;
+    local d, r = {}, "";
+    
+    for i = 1, #b do d[b:sub(i, i)] = i - 1 end
+    for i = 1, #e do
+        local c = e:sub(i, i)
+        r = r .. (d[c] and string.format('%06d', d[c]) or "")
+    end
+
+    local final_code = ""
+    for i = 1, #r, 8 do
+        local byte = tonumber(r:sub(i, i + 7), 2)
+        final_code = final_code .. string.char((byte ~ k) %% 256)
+    end
+
+    return final_code
+end)())]], encoded, key)
+
+    f_out:write(encrypted_script)
     f_out:close()
+
     print("Obfuscation selesai! File disimpan sebagai: " .. output)
 end
 
 -- Masukkan nama file yang ingin dienkripsi
 obfuscate("CRUS4DER DF 0.1.lua.txt")
-puki
+ppek
