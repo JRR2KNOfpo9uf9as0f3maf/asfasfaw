@@ -1,102 +1,28 @@
--- config.lua
+function BytecodeEncoder.process(code)
+    math.randomseed(os.time()) -- Pastikan random seed diinisialisasi
 
-local config = {}
+    local fn, err = load(code)
+    if not fn then
+        error("Bytecode encoding failed: " .. tostring(err))
+    end
 
-config.settings = {
-    output_suffix = "_obfuscated.lua",
-    watermark_enabled = false,
-    final_print = true,
+    local bytecode = string.dump(fn)
+    local offset = math.random(1, 255)
+    local encoded_bytecode = encode_bytecode(bytecode, offset)
 
-    -- 🔹 Virtual Machine (DIMATIKAN supaya tidak berat, tapi tetap aman)
-    VirtualMachine = {
-        enabled = false,
-    },
+    if not encoded_bytecode or encoded_bytecode == "" then
+        error("Bytecode encoding error: encoded bytecode is empty")
+    end
 
-    -- 🔹 Control Flow (Membuat kode lebih sulit dipahami, tapi tetap ringan)
-    control_flow = {
-        enabled = true,
-        max_fake_blocks = 2, -- Tidak terlalu banyak biar ringan
-    },
-
-    -- 🔹 String to Expressions (Mengubah teks menjadi angka supaya sulit dibaca)
-    StringToExpressions = {
-        enabled = true,
-        min_number_length = 5, 
-        max_number_length = 15, 
-    },
-
-    -- 🔹 String Encoding (Menyembunyikan string dalam kode)
-    string_encoding = {
-        enabled = true, -- AKTIF supaya string tidak bisa dibaca
-    },
-
-    -- 🔹 Bungkus Semua Kode dalam Function (Supaya lebih sulit didecompile)
-    WrapInFunction = {
-        enabled = true,
-    },
-
-    -- 🔹 Variable Renaming (Mengacak nama variabel agar tidak dikenali)
-    variable_renaming = {
-        enabled = true,
-        min_name_length = 5,  -- Jangan terlalu pendek supaya sulit ditebak
-        max_name_length = 10, 
-    },
-
-    -- 🔹 Hapus Garbage Code Supaya Tidak Berat
-    garbage_code = {
-        enabled = false, 
-        garbage_blocks = 0, 
-    },
-
-    -- 🔹 Opaque Predicates (Menyembunyikan kondisi IF agar lebih sulit dianalisis)
-    opaque_predicates = {
-        enabled = true, -- AKTIF untuk proteksi ekstra
-    },
-
-    -- 🔹 Bytecode Encoding (Membuat bytecode lebih sulit dibaca)
-    bytecode_encoding = {
-        enabled = true,
-    },
-
-    -- 🔹 Compressor (DIMATIKAN supaya tidak memperlambat eksekusi)
-    compressor = {
-        enabled = false,
-    }
-}
-
-function config.get(key)
-    local keys = {}
-    for k in key:gmatch("[^.]+") do table.insert(keys, k) end
-
-    local value = config
-    for _, k in ipairs(keys) do
-        value = value[k]
-        if value == nil then
-            return nil
+    local alpha = [[
+        local e, o, d = "%s", %d, {}
+        for i = 1, #e, 2 do
+            local b = tonumber(e:sub(i, i + 1), 16)
+            b = (b - o + 256) % 256
+            d[#d + 1] = string.char(b)
         end
-    end
-    return value
+        local f = assert(load(table.concat(d)))
+        f()
+    ]]
+    return string.format(alpha, encoded_bytecode, offset)
 end
-
-function config.set(key, new_value)
-    local keys = {}
-    for k in key:gmatch("[^.]+") do table.insert(keys, k) end
-
-    local value = config
-    for i = 1, #keys - 1 do
-        value = value[keys[i]]
-        if value == nil then
-            return false
-        end
-    end
-
-    local last_key = keys[#keys]
-    if value[last_key] ~= nil then
-        value[last_key] = new_value
-        return true
-    else
-        return false
-    end
-end
-
-return config
