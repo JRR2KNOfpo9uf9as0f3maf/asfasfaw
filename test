@@ -1,18 +1,10 @@
 local function getHWID()
-    local file1 = io.popen("wmic diskdrive get serialnumber")
-    local hdd = file1:read("*a") or ""
-    file1:close()
-    
-    local file2 = io.popen("getmac")
-    local mac = file2:read("*a") or ""
-    file2:close()
+    local cmd = "wmic csproduct get uuid"
+    local handle = io.popen(cmd)
+    local result = handle:read("*a")
+    handle:close()
 
-    local file3 = io.popen("wmic csproduct get uuid")
-    local uuid = file3:read("*a") or ""
-    file3:close()
+    local hwid = result:match("(%w+-%w+-%w+-%w+-%w+)")
 
-    return hdd:gsub("%s+", "") .. mac:gsub("%s+", "") .. uuid:gsub("%s+", "")
+    return hwid
 end
-
-local hwid = getHWID()
-print("HWID kamu: " .. hwid)
