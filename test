@@ -42,9 +42,24 @@ local function obfuscate(file)
     local f_out = io.open(output, "w")
     
     -- Kode langsung terenkripsi tanpa fungsi tambahan
-    f_out:write("load((function() local a,b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/','")
-    f_out:write(encoded)
-    f_out:write("',c,d,e={}," .. key .. ",'' for f=1,#b do c[b:sub(f,f)]=f-1 end for f=1,#b do d=f%4==1 and c[b:sub(f,f)]*64 or d+(f%4==2 and c[b:sub(f,f)]*16 or f%4==3 and c[b:sub(f,f)]*4 or c[b:sub(f,f)]//16) if f%4==0 then e=e..string.char((d-d%256)/256,d%256) end end return (e:gsub('.', function(g) return string.char(g:byte() ~ " .. key .. ") end)) end)())")
+    f_out:write(string.format([[
+load((function() 
+    local base64_chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    local encoded_data = "%s"
+    local key = %d
+    local decode_map, decoded_str, buffer = {}, '', ''
+
+    for i = 1, #base64_chars do decode_map[base64_chars:sub(i, i)] = i - 1 end
+    for i = 1, #encoded_data do
+        local char = encoded_data:sub(i, i)
+        buffer = buffer .. (decode_map[char] and string.format('%06d', tonumber(tostring(decode_map[char]), 2)) or '')
+    end
+    for i = 1, #buffer, 8 do
+        local byte = tonumber(buffer:sub(i, i + 7), 2)
+        decoded_str = decoded_str .. string.char(byte ~ key)
+    end
+    return decoded_str
+end)()) ]], encoded, key))
 
     f_out:close()
     print("Obfuscation selesai! File disimpan sebagai: " .. output)
