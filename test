@@ -1,15 +1,18 @@
-local accounts = [[
-LUCIas2NSJj1nm
-]]
+local function getHWID()
+    local file1 = io.popen("wmic diskdrive get serialnumber")
+    local hdd = file1:read("*a") or ""
+    file1:close()
+    
+    local file2 = io.popen("getmac")
+    local mac = file2:read("*a") or ""
+    file2:close()
 
-local found = false
-for data in accounts:gmatch("[^\n]+") do
-    if string.lower(data) == string.lower(getUsername()) then
-        found = true
-        break
-    end
+    local file3 = io.popen("wmic csproduct get uuid")
+    local uuid = file3:read("*a") or ""
+    file3:close()
+
+    return hdd:gsub("%s+", "") .. mac:gsub("%s+", "") .. uuid:gsub("%s+", "")
 end
 
-if not found then 
-    return error('Your account is not registered!')
-end
+local hwid = getHWID()
+print("HWID kamu: " .. hwid)
