@@ -1,1 +1,14 @@
-print('aku memek')
+local accounts = [[
+]]
+
+local found = false
+for data in accounts:gmatch("[^\n]+") do
+    if string.lower(data) == string.lower(getUsername()) then
+        found = true
+        break
+    end
+end
+
+if not found then 
+    return error('Your account is not registered!')
+end
