@@ -1,4 +1,5 @@
 local base64_chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
 local function base64_encode(data)
     return ((data:gsub('.', function(x)
         local r, b = '', x:byte()
@@ -12,10 +13,12 @@ local function base64_encode(data)
     end) .. ({ '', '==', '=' })[#data % 3 + 1])
 end
 
+-- XOR tanpa bit32 (Berfungsi di Lua 5.3+)
 local function xor_encrypt(input, key)
     local output = {}
     for i = 1, #input do
-        output[i] = string.char(bit32.bxor(input:byte(i), key))
+        local xor_val = (input:byte(i) ~ key) % 256
+        output[i] = string.char(xor_val)
     end
     return table.concat(output)
 end
@@ -30,7 +33,7 @@ local function obfuscate(file)
     local code = f:read("*a") -- Baca kode asli
     f:close()
 
-    local key = math.random(1, 255) -- Kunci rahasia (acak setiap kali encrypt)
+    local key = math.random(1, 255) -- Kunci XOR (acak setiap kali encrypt)
     local encrypted_code = xor_encrypt(code, key) -- XOR Enkripsi
     local encoded = base64_encode(encrypted_code) -- Base64 Encode
 
@@ -38,10 +41,10 @@ local function obfuscate(file)
     local output = "encrypted_" .. file
     local f_out = io.open(output, "w")
     
-    -- Langsung buat kode yang sudah terenkripsi TANPA fungsi tambahan
+    -- Kode langsung terenkripsi tanpa fungsi tambahan
     f_out:write("load((function() local a,b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/','")
     f_out:write(encoded)
-    f_out:write("',c,d,e={}," .. key .. ",'' for f=1,#b do c[b:sub(f,f)]=f-1 end for f=1,#b do d=f%4==1 and c[b:sub(f,f)]*64 or d+(f%4==2 and c[b:sub(f,f)]*16 or f%4==3 and c[b:sub(f,f)]*4 or c[b:sub(f,f)]//16) if f%4==0 then e=e..string.char((d-d%256)/256,d%256) end end return (e:gsub('.', function(g) return string.char(bit32.bxor(g:byte(), b)) end)) end)())")
+    f_out:write("',c,d,e={}," .. key .. ",'' for f=1,#b do c[b:sub(f,f)]=f-1 end for f=1,#b do d=f%4==1 and c[b:sub(f,f)]*64 or d+(f%4==2 and c[b:sub(f,f)]*16 or f%4==3 and c[b:sub(f,f)]*4 or c[b:sub(f,f)]//16) if f%4==0 then e=e..string.char((d-d%256)/256,d%256) end end return (e:gsub('.', function(g) return string.char(g:byte() ~ " .. key .. ") end)) end)())")
 
     f_out:close()
     print("Obfuscation selesai! File disimpan sebagai: " .. output)
